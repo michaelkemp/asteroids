@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Asteroids</title>
+<style>
+body,html {
+    margin:10px;
+    padding:10px;
+	background-color:#444;
+}
+#asteroids {
+    display:block;
+    margin:0px auto;
+    width:640px;
+    height:480px;
+    background-color: black;
+}
+</style>
+<script src="jquery-2.1.4.min.js"></script>
+<script>
+$(document).ready(function() {
+
+    const BIG = 40;
+    const MED = 20;
+    const SML = 10;
+
+    const BIG_SCORE = 20;
+    const MED_SCORE = 50;
+    const SML_SCORE = 100;
+    
+    const BIG_ALIEN = 16;
+    const SML_ALIEN = 10;
+    const ALIEN_SCORE = 1000;
+    
+    const MAX_SHOTS = 4;
+    
+    const BEGIN_LIVES = 3;
+    const FREE_EVERY = 10000;
+    
+ 	const CWIDE = 640;
+	const CHIGH = 480;
+	var canvas=document.getElementById("asteroids");
+	var ctx=canvas.getContext("2d");
+
+    const DIRSTEPS = 360;
+	var dirArr = new Array();
+	for(var i=0; i<DIRSTEPS; ++i) {
+		var angle = i * Math.PI/180;
+		dirArr[i] = {sin:Math.sin(angle), cos:Math.cos(angle)};
+	}	
+    
+    var p1Score = 0;
+    var p2Score = 0;
+    var hiScore = 0;
+    var spawn = true;
+    var lives = 0;
+    var hard = 0;
+    var level = 0;
+    var dead = true;
+	var numRocks = 5;
+    
+    var animationCounter = 0;
+	var RUN = true;
+    var FPS = 30;
+    var before = Date.now();
+    var fpsInt = Math.floor(1000/FPS);
+
+    var difficulty = [];
+    difficulty.push({ROCKS: 3, RBIGSPD: 0.5, RMEDSPD: 1, RSMLSPD: 2,     ALIENS: 6, ABIGSPD: 1, ASMLSPD: 1.5, AFREQ: 400, ADODGE: 200, AFIRE: 200, AAIM: 180});
+    difficulty.push({ROCKS: 3, RBIGSPD: 0.5, RMEDSPD: 1, RSMLSPD: 2,     ALIENS: 5, ABIGSPD: 1, ASMLSPD: 1.5, AFREQ: 350, ADODGE: 200, AFIRE: 150, AAIM: 120});
+    difficulty.push({ROCKS: 4, RBIGSPD: 0.5, RMEDSPD: 1, RSMLSPD: 2,     ALIENS: 4, ABIGSPD: 1, ASMLSPD: 1.5, AFREQ: 300, ADODGE: 200, AFIRE: 150, AAIM: 105});
+    difficulty.push({ROCKS: 4, RBIGSPD: 0.5, RMEDSPD: 1, RSMLSPD: 2,     ALIENS: 3, ABIGSPD: 1, ASMLSPD: 1.5, AFREQ: 250, ADODGE: 200, AFIRE: 100, AAIM: 90});
+    difficulty.push({ROCKS: 5, RBIGSPD: 0.8, RMEDSPD: 1.3, RSMLSPD: 2.6, ALIENS: 2, ABIGSPD: 1, ASMLSPD: 1.5, AFREQ: 200, ADODGE: 100, AFIRE: 100, AAIM: 80});
+    difficulty.push({ROCKS: 5, RBIGSPD: 0.8, RMEDSPD: 1.3, RSMLSPD: 2.6, ALIENS: 0, ABIGSPD: 1, ASMLSPD: 1.5, AFREQ: 250, ADODGE: 100, AFIRE: 100, AAIM: 70});
+    difficulty.push({ROCKS: 6, RBIGSPD: 0.8, RMEDSPD: 1.3, RSMLSPD: 2.6, ALIENS: 0, ABIGSPD: 1, ASMLSPD: 1.5, AFREQ: 200, ADODGE: 100, AFIRE:  80, AAIM: 60});
+    difficulty.push({ROCKS: 6, RBIGSPD: 0.8, RMEDSPD: 1.3, RSMLSPD: 2.6, ALIENS: 0, ABIGSPD: 1, ASMLSPD: 1.6, AFREQ: 150, ADODGE:  50, AFIRE:  80, AAIM: 50});
+    difficulty.push({ROCKS: 7, RBIGSPD: 1.1, RMEDSPD: 1.7, RSMLSPD: 3,   ALIENS: 0, ABIGSPD: 1, ASMLSPD: 1.7, AFREQ: 100, ADODGE:  50, AFIRE:  50, AAIM: 25});
+    difficulty.push({ROCKS: 7, RBIGSPD: 1.1, RMEDSPD: 1.7, RSMLSPD: 3,   ALIENS: 0, ABIGSPD: 1, ASMLSPD: 1.8, AFREQ:  50, ADODGE:  50, AFIRE:  50, AAIM: 10});
+    
+
+    function startGame() {
+        p1Score = 0;
+        p2Score = 0;
+        lives = BEGIN_LIVES;
+        level = 0;
+        hard = 0;
+        numRocks = difficulty[hard].ROCKS; 
+        dead = false;
+        for(var i=0; i<death.length; ++i) {
+            death[i].distance = 0;
+            death[i].alive = true;
+        }
+        ship.position[0] = CWIDE/2;
+        ship.position[1] = CHIGH/2;
+        ship.direction[0] = 0;
+        ship.direction[1] = 0;
+        enemy.counter = 0;
+        enemy.alive = false;
+        levelBegin();
+    }
+
+    function adjustScore(toAdd,toPlayer) {
+        var playerScore = 0;
+        if (toPlayer == 1) {
+            var b4Score = Math.floor(p1Score/FREE_EVERY);
+            p1Score += toAdd;
+            playerScore = p1Score;
+            var nowScore = Math.floor(p1Score/FREE_EVERY);
+            if (nowScore > b4Score) { lives += 1; }
+        
+        } else {
+            var b4Score = Math.floor(p2Score/FREE_EVERY);
+            p2Score += toAdd;
+            playerScore = p2Score;
+            var nowScore = Math.floor(p2Score/FREE_EVERY);
+            if (nowScore > b4Score) { lives += 1; }
+        }
+        if (p1Score > hiScore) hiScore = p1Score;
+        if (p2Score > hiScore) hiScore = p2Score;
+        
+        // INCREASE DIFFICULTY WITH SCORE
+        if      (playerScore >= 50000) { hard = 9; }
+        else if (playerScore >= 40000) { hard = 8; }
+        else if (playerScore >= 30000) { hard = 7; }
+        else if (playerScore >= 20000) { hard = 6; }
+        else if (playerScore >= 10000) { hard = 5; }
+        else if (playerScore >=  8000) { hard = 4; }
+        else if (playerScore >=  6000) { hard = 3; }
+        else if (playerScore >=  4000) { hard = 2; }
+        else if (playerScore >=  2000) { hard = 1; }
+        else                           { hard = 0; }
+        
+    }
+    
+    // PIXEL
+    var pixel = ctx.createImageData(1,1); 
+    pixel.data[0] = 255; // RED
+    pixel.data[1] = 255; // GREEN
+    pixel.data[2] = 255; // BLUE
+    pixel.data[3] = 255; // ALPHA
+
+	var font = [];
+	font.push([[-1.0,-1.0],[-1.0, 0.0]]);
+	font.push([[-1.0, 0.0],[-1.0, 1.0]]);
+	font.push([[-0.3,-1.0],[-0.3, 0.0]]);
+	font.push([[-0.3, 0.0],[-0.3, 1.0]]);
+	font.push([[ 0.4,-1.0],[ 0.4, 0.0]]);
+	font.push([[ 0.4, 0.0],[ 0.4, 1.0]]);
+	font.push([[-1.0,-1.0],[-0.3,-1.0]]);
+	font.push([[-0.3,-1.0],[ 0.4,-1.0]]);
+	font.push([[-1.0, 0.0],[-0.3, 0.0]]);
+	font.push([[-0.3, 0.0],[ 0.4, 0.0]]);
+	font.push([[-1.0, 1.0],[-0.3, 1.0]]);
+	font.push([[-0.3, 1.0],[ 0.4, 1.0]]);
+	// A - 12-16
+	font.push([[-1.0, 1.0],[-1.0,-0.3]]);
+	font.push([[-1.0,-0.3],[-0.3,-1.0]]);
+	font.push([[-0.3,-1.0],[ 0.4,-0.3]]);
+	font.push([[ 0.4,-0.3],[ 0.4, 1.0]]);
+	font.push([[-1.0, 0.3],[ 0.4, 0.3]]);
+	// B - 17-25
+	font.push([[-1.0,-1.0],[ 0.1,-1.0]]);
+	font.push([[-1.0, 0.0],[ 0.1, 0.0]]);
+	font.push([[-1.0, 1.0],[ 0.1, 1.0]]);
+	font.push([[ 0.1,-1.0],[ 0.4,-0.7]]);
+	font.push([[ 0.1, 0.0],[ 0.4,-0.3]]);
+	font.push([[ 0.1, 0.0],[ 0.4, 0.3]]);
+	font.push([[ 0.1, 1.0],[ 0.4, 0.7]]);
+	font.push([[ 0.4,-0.7],[ 0.4,-0.3]]);
+	font.push([[ 0.4, 0.7],[ 0.4, 0.3]]);
+	// D - 26-30
+	font.push([[-1.0,-1.0],[-0.3,-1.0]]);
+	font.push([[-1.0, 1.0],[-0.3, 1.0]]);
+	font.push([[-0.3, 1.0],[ 0.4, 0.3]]);
+	font.push([[-0.3,-1.0],[ 0.4,-0.3]]);
+	font.push([[ 0.4, 0.3],[ 0.4,-0.3]]);
+	// G - 31-33 
+	font.push([[ 0.4,-1.0],[ 0.4,-0.5]]);
+	font.push([[ 0.4, 1.0],[ 0.4, 0.3]]);
+	font.push([[ 0.4, 0.3],[-0.3, 0.3]]);
+	// I - 34-35 
+	font.push([[-0.8, 1.0],[ 0.2, 1.0]]);
+	font.push([[-0.8,-1.0],[ 0.2,-1.0]]);
+	// J - 36-37 
+	font.push([[ 0.4, 1.0],[-0.3, 1.0]]);
+	font.push([[-0.3, 1.0],[-1.0, 0.3]]);
+	// K - 38-39 
+	font.push([[ 0.4,-1.0],[-1.0, 0.0]]);
+	font.push([[ 0.4, 1.0],[-1.0, 0.0]]);
+	// MY - 40-42 
+	font.push([[ 0.4,-1.0],[-0.3,-0.2]]);
+	font.push([[-1.0,-1.0],[-0.3,-0.2]]);
+	font.push([[-0.3,-0.2],[-0.3, 1.0]]);
+	// NZX - 43-44 
+	font.push([[ 0.4,-1.0],[-1.0, 1.0]]);
+	font.push([[-1.0,-1.0],[ 0.4, 1.0]]);
+	// Q - 45-47 
+	font.push([[-0.3, 0.3],[ 0.4, 1.0]]);
+	font.push([[-0.3, 1.0],[ 0.4, 0.3]]);
+	font.push([[ 0.4, 0.0],[ 0.4, 0.3]]);
+	// R - 48 
+	font.push([[-0.6, 0.0],[ 0.4, 1.0]]);
+	// V - 49-52
+	font.push([[-1.0,-1.0],[-1.0, 0.3]]);
+	font.push([[-1.0, 0.3],[-0.3, 1.0]]);
+	font.push([[-0.3, 1.0],[ 0.4, 0.3]]);
+	font.push([[ 0.4, 0.3],[ 0.4,-1.0]]);
+	// W - 53-54 
+	font.push([[ 0.4, 1.0],[-0.3, 0.2]]);
+	font.push([[-1.0, 1.0],[-0.3, 0.2]]);
+	// © - 55-57 
+	font.push([[ 0.1,-0.6],[-0.6,-0.6]]);
+	font.push([[-0.6,-0.6],[-0.6, 0.5]]);
+	font.push([[-0.6, 0.5],[ 0.1, 0.5]]);
+	
+	var figures = [];
+	figures.push([0,1,10,11,5,4,7,6]); // 0
+	figures.push([2,3]); // 1
+	figures.push([6,7,4,9,8,1,10,11]); // 2
+	figures.push([6,7,4,8,9,5,10,11]); // 3
+	figures.push([0,8,9,4,5]); // 4
+	figures.push([7,6,0,8,9,5,11,10]); // 5
+	figures.push([0,1,10,11,5,9,8]); // 6
+	figures.push([6,7,4,5]); // 7
+	figures.push([1,0,6,7,4,5,11,10,8,9]); // 8
+	figures.push([9,8,0,6,7,4,5]); // 9
+	figures.push([7,6,0,1,10,11,5,4,55,56,57]); // ©
+	figures.push([12,13,14,15,16]); // A 
+	figures.push([17,18,19,20,21,22,23,24,25,0,1]); // B 
+	figures.push([7,6,0,1,10,11]); // C 
+	figures.push([26,27,28,29,30,0,1]); // D 
+	figures.push([7,6,0,1,10,11,8]); // E 
+	figures.push([7,6,0,1,8]); // F 
+	figures.push([31,32,33,7,6,0,1,10,11]); // G 
+	figures.push([0,1,8,9,4,5]); // H 
+	figures.push([34,35,2,3]); // I 
+	figures.push([36,37,4,5]); // J
+	figures.push([38,39,0,1]); // K 
+	figures.push([0,1,10,11]); // L 
+	figures.push([40,41,0,1,4,5]); // M 
+	figures.push([44,0,1,4,5]); // N 
+	figures.push([7,6,0,1,10,11,5,4]); // O 
+	figures.push([1,0,6,7,4,9,8]); // P 
+	figures.push([45,46,47,10,1,0,6,7,4]); // Q 
+	figures.push([48,1,0,6,7,4,9,8]); // R 
+	figures.push([7,6,0,8,9,5,11,10]); // S 
+	figures.push([7,6,2,3]); // T 
+	figures.push([0,1,10,11,5,4]); // U 
+	figures.push([49,50,51,52]); // V
+	figures.push([53,54,0,1,4,5]); // W
+	figures.push([43,44]); // X 
+	figures.push([40,41,42]); // Y 
+	figures.push([43,6,7,10,11]); // Z 
+	
+	var KeyBits = 0;
+	var shipDirection = 0;
+
+    var explode = [];
+    for(var i=0; i<16; ++i) {
+        var pX = (rand(0,200) - 100) / 100;
+        var pY = (rand(0,200) - 100) / 100;
+        explode.push([pX,pY]);
+    }
+    var fireWorks = 0;
+    
+    var death = [];
+    death.push({ line: [[-0.2,-0.6],[-0.7,0.3]], direction: 210, speed:0.2, distance: 0, far: rand(20,60), alive:false });
+    death.push({ line: [[-0.4,0.8] ,[-0.5,0.5]], direction: 130, speed:0.2, distance: 0, far: rand(20,60), alive:false });
+    death.push({ line: [[-0.2,0.9] ,[0.2,0.8]] , direction: 85,  speed:0.2, distance: 0, far: rand(20,60), alive:false });
+    death.push({ line: [[0.8,0.7]  ,[0.6,0.5]] , direction: 340, speed:0.2, distance: 0, far: rand(20,60), alive:false });
+    death.push({ line: [[0.6,0.0]  ,[0.5,-0.8]], direction: 300, speed:0.2, distance: 0, far: rand(20,60), alive:false });
+    death.push({ line: [[0.2,-0.8] ,[0.0,-0.9]], direction: 290, speed:0.2, distance: 0, far: rand(20,60), alive:false });
+    
+	var bullets = [[1.0,1.0],[-1.0,1.0],[-1.0,-1.0],[1.0,-1.0],[1.0,1.0]];
+    
+	var fighter = [[1.0,0.0],[-0.9,0.7],[-0.6,0.5],[-0.6,-0.5],[-0.9,-0.7],[1.0,0.0]];
+	var fighterConvex = [0,1,4,0];
+	var thrust = [[-0.6,0.15],[-1.1,0.0],[-0.6,-0.15]];
+    
+    var ufo = [[1.0,0.2],[0.5,-0.2],[0.2,-0.6],[-0.2,-0.6],[-0.5,-0.2],[-1.0,0.2],[-0.5,0.6],[0.5,0.6],[1.0,0.2],[0.5,-0.2],[-0.5,-0.2],[-1.0,0.2],[1.0,0.2]];
+    var ufoConvex = [0,1,2,3,4,5,6,7,8]
+    
+	var rocks = [];
+    // Mushroom
+	rocks.push({
+        concave:[[1.0,0.5],[0.75,0.0],[1.0,-0.5],[0.5,-1.0],[0.0,-0.5],[-0.5,-1.0],[-1.0,-0.5],[-1.0,0.5],[-0.5,1.0],[0.25,1.0],[1.0,0.5]],
+        convex: [[1,2,3,4,1],[4,5,6,7,4],[0,1,4,7,8,9,0] ]
+    });
+    // Plane
+	rocks.push({
+        concave:[[0.5,-0.25],[1.0,-0.5],[0.5,-1.0],[0.0,-0.75],[-0.5,-1.0],[-1.0,-0.5],[-0.75,0.0],[-1.0,0.5],[-0.5,1.0],[-0.25,0.75],[0.5,1.0],[1.0,0.25],[0.5,-0.25]],
+        convex: [[0,1,2,3,0],[6,7,8,9,6],[0,3,4,5,6,9,10,11,0]]
+    });
+    // Duck
+	rocks.push({
+        concave:[[0.25,0.0],[1.0,-0.25],[1.0,-0.5],[0.25,-1.0],[-0.5,-1.0],[-0.25,-0.5],[-1.0,-0.5],[-1.0,0.25],[-0.5,1.0],[0.25,0.75],[0.5,1.0],[1.0,0.5],[0.25,0.0]],
+        convex: [[0,1,2,3,4,5,1],[5,6,7,8,9,0,5],[0,9,10,11,0]] 
+    });
+    // Hammer
+	rocks.push({
+        concave:[[1.0,-0.25],[0.5,-1.0],[-0.25,-1.0],[-1.0,-0.25],[-0.5,0.0],[-1.0,0.25],[-0.5,1.0],[0.0,0.25],[0.0,1.0],[0.5,1.0],[1.0,0.25],[1.0,-0.25]],
+        convex: [[0,1,7,8,9,10,0],[1,2,3,4,7,1],[4,5,6,7,4]]
+    });
+    
+    var enemy = { master: [],
+				  actual: [], 
+				  position:  [0,0],
+                  direction: [0,0], 
+				  degrees: 0,
+                  speed: 0,
+				  scale: 0,
+                  distance: 0,
+                  dodge: 0,
+                  fire: 0,
+                  counter: 0,
+                  alive: false
+                };
+	for(var j=0; j<ufo.length; ++j) {
+		enemy.master[j] = ufo[j].slice();
+		enemy.actual[j] = ufo[j].slice();
+	}
+                
+	var ship = { master: [],
+				 actual: [], 
+				 thrustMaster: [],
+				 thrustActual: [],
+				 position: [CWIDE/2,CHIGH/2], 
+				 direction: [0,0],
+				 scale: 12
+    			 };
+	for(var j=0; j<fighter.length; ++j) {
+		ship.master[j] = fighter[j].slice();
+		ship.actual[j] = fighter[j].slice();
+	}
+	for(var j=0; j<thrust.length; ++j) {
+		ship.thrustMaster[j] = thrust[j].slice();
+		ship.thrustActual[j] = thrust[j].slice();
+	}
+
+	var asteroids = [];
+    var liveRoids = 0;
+    function levelBegin() {
+        level += 1;
+        numRocks = difficulty[hard].ROCKS;
+        
+        asteroids = [];
+        var newRocks = 0;
+        while(newRocks < numRocks) {
+            var num = rand(0,3);
+            var siz = BIG;
+            var atX = rand(0, CWIDE);
+            var atY = rand(0, CHIGH);
+            var dir = rand(0,(DIRSTEPS-1));
+            var mph = difficulty[hard].RBIGSPD;
+            
+            var spwnLhs = ship.position[0] - (ship.scale*3);
+            var spwnRhs = ship.position[0] + (ship.scale*3);
+            var spwnTop = ship.position[1] - (ship.scale*3);
+            var spwnBut = ship.position[1] + (ship.scale*3);
+            var rockLht = atX - siz;
+            var rockRhs = atX + siz;
+            var rockTop = atY - siz;
+            var rockBut = atY + siz;   
+            
+            if ((rockLht > spwnRhs || rockRhs < spwnLhs || rockTop > spwnBut || rockBut < spwnTop)) {
+                makeAsteroid(num, siz, atX, atY, dir, mph);
+                ++newRocks;
+            }    
+        }
+        liveRoids = numRocks;
+    }
+    
+    function makeAsteroid(rockNo, rockScale, rockX, rockY, rockDir, rockSpeed) {
+        var tmp = [];
+		for(var j=0; j<rocks[rockNo].concave.length; ++j) {
+			tmp[j] = [0,0];
+		}
+        asteroids.push( { 	
+            actual: tmp,
+            rockNo: rockNo,
+            degrees: rockDir,
+            position: [rockX,rockY],
+			direction: [dirArr[rockDir].cos, dirArr[rockDir].sin],
+			moveSpeed: rockSpeed,
+			scale: rockScale,
+            alive: true
+    	}); 
+    }
+    
+    var missiles = [];
+    var liveRounds = 0;
+    function shotFired() {
+        if (liveRounds >= MAX_SHOTS) return; // no more than MAX_SHOTS missiles
+        if (liveRounds == 0) { missiles = []; } // clear array if no live missiles
+        missiles.push( { 	
+            actual: [[1.0,1.0],[-1.0,1.0],[-1.0,-1.0],[1.0,-1.0],[1.0,1.0]],
+            degrees: shipDirection,
+            position: [ship.position[0] + (dirArr[shipDirection].cos * 10),ship.position[1] + (dirArr[shipDirection].sin * 10)],
+			direction: [dirArr[shipDirection].cos, dirArr[shipDirection].sin],
+			moveSpeed: 10,
+            stepCount: 0,
+			scale: 0.5,
+            alive: true
+    	}); 
+        ++liveRounds;
+    }
+
+    var explosions = []
+    function bigBang(x,y) {
+        if (fireWorks == 0) { explosions = []; } // clear array if no live explosions
+        explosions.push( { 	
+            position: [x,y],
+            stepCount: 0,
+			scale: 5,
+            alive: true
+    	}); 
+        ++fireWorks;
+    }
+    
+    function moveBang() {
+        for(var i=0; i<explosions.length; ++i) {
+            if (!explosions[i].alive) continue;
+            ++explosions[i].stepCount;
+            if (explosions[i].stepCount > 10) { explosions[i].alive = false; --fireWorks; }
+            explosions[i].scale += 3;
+        }
+    }
+
+    function createEnemy() {
+        if (!enemy.alive) {
+            var which = rand(1,difficulty[hard].ALIENS);
+            enemy.scale = (which == 1) ? SML_ALIEN : BIG_ALIEN;
+            enemy.speed = (which == 1) ? difficulty[hard].ASMLSPD : difficulty[hard].ABIGSPD;
+            var scale = enemy.scale;
+            var changeDir = rand(0,90) - 45;
+            var tmp = rand(1,2);
+            switch (tmp) {
+                case 1: enemy.position[0] = (0-scale); enemy.degrees = (0 + (DIRSTEPS + changeDir)) % DIRSTEPS; break;
+                case 2: enemy.position[0] = (CWIDE+scale); enemy.degrees = (180 + (DIRSTEPS + changeDir)) % DIRSTEPS; break;
+            }
+            enemy.position[1] = rand(0,CHIGH);
+            enemy.counter = 0;
+            enemy.dodge = difficulty[hard].ADODGE;
+            enemy.fire = difficulty[hard].AFIRE;
+            enemy.alive = true;
+        }
+    }
+    
+    function moveEnemy() {
+        if (enemy.alive) {
+            enemy.counter = 0;
+            ++enemy.distance;
+            var scale = enemy.scale;
+            var changeDir = rand(0,60) - 30;
+            if ((enemy.distance % enemy.dodge) == 0) { enemy.degrees = (enemy.degrees + (DIRSTEPS + changeDir)) % DIRSTEPS; }
+            if ((enemy.distance % enemy.fire) == 0) { enemyFire(); }
+            
+            enemy.direction[0] = dirArr[enemy.degrees].cos * enemy.speed;
+            enemy.direction[1] = dirArr[enemy.degrees].sin * enemy.speed;
+            enemy.position[0] += enemy.direction[0];
+            enemy.position[1] += enemy.direction[1];
+            if (enemy.position[0] > (CWIDE+scale)) enemy.alive = false;
+            if (enemy.position[0] < (0-scale)) enemy.alive = false;
+            if (enemy.position[1] > CHIGH) enemy.position[1] = 0;
+            if (enemy.position[1] < 0) enemy.position[1] = CHIGH;
+
+            for(var i=0; i<enemy.master.length; ++i) {
+                var x = enemy.master[i][0];
+                var y = enemy.master[i][1];
+                enemy.actual[i][0] = enemy.position[0] + (x * scale);
+                enemy.actual[i][1] = enemy.position[1] + (y * scale);
+            }
+            
+            // ========== Ship+Saucer Collision Detect ==========
+            if (!dead) {
+                var shipLhs = ship.position[0] - ship.scale;
+                var shipRhs = ship.position[0] + ship.scale;
+                var shipTop = ship.position[1] - ship.scale;
+                var shipBut = ship.position[1] + ship.scale;
+                var enemyLhs = enemy.position[0] - enemy.scale;
+                var enemyRhs = enemy.position[0] + enemy.scale;
+                var enemyTop = enemy.position[1] - enemy.scale;
+                var enemyBut = enemy.position[1] + enemy.scale;
+
+                if (! (shipLhs > enemyRhs || shipRhs < enemyLhs || shipTop > enemyBut || shipBut < enemyTop)) {
+                    var hit = shipEnemyCollision();
+                    if (hit) {
+                        enemy.alive = false;
+                        bigBang(enemy.position[0],enemy.position[1]);
+                        adjustScore(ALIEN_SCORE,1);
+                        dead = true; // YOU DIED
+                        KeyBits = 0; // STOP DIRECTION/FIRING/ETC
+                        ship.direction[0] = 0; // STOP SHIP
+                        ship.direction[1] = 0; // STOP SHIP
+                    }
+                } 
+            }
+            // ========== Ship+Saucer Collision Detect ========== 
+            
+        }
+    }
+    
+    var projectile = [];
+    var liveICBMs = 0;
+    function enemyFire() {
+        if (enemy.scale == BIG_ALIEN) {
+            var fireDir = rand(0,(DIRSTEPS-1));
+        } else {
+            var fireDir = 0;
+            var targetX = ship.position[0];
+            var targetY = ship.position[1];
+            var startX = enemy.position[0];
+            var startY = enemy.position[1];
+            var slope = 0;
+            var atan = (startY > targetY) ? 270 : 90;
+            if ((startX-targetX) != 0) { slope = (startY-targetY)/(startX-targetX); atan = Math.round(180/Math.PI * Math.atan(slope)); }
+            if (startX > targetX) atan -= 180;
+            var missby = Math.round(rand(0,difficulty[hard].AAIM) - (difficulty[hard].AAIM/2));
+            atan += missby;
+            atan = (atan + 360) % 360;
+            fireDir = atan;
+        }
+        
+        if (liveICBMs == 0) { projectile = []; } // clear array if no live projectile
+        
+        projectile.push( { 	
+            actual: [[1.0,1.0],[-1.0,1.0],[-1.0,-1.0],[1.0,-1.0],[1.0,1.0]],
+            degrees: fireDir,
+            position: [enemy.position[0] + (dirArr[fireDir].cos * 5),enemy.position[1] + (dirArr[fireDir].sin * 5)],
+			direction: [dirArr[fireDir].cos, dirArr[fireDir].sin],
+			moveSpeed: 10,
+            stepCount: 0,
+			scale: 1,
+            alive: true
+    	}); 
+        ++liveICBMs;
+    }
+    
+    function moveProjectile() {
+		for(var i=0; i<projectile.length; ++i) {
+            if (!projectile[i].alive) continue;
+            ++projectile[i].stepCount;
+            projectile[i].position[0] += (projectile[i].direction[0] * projectile[i].moveSpeed);
+            projectile[i].position[1] += (projectile[i].direction[1] * projectile[i].moveSpeed);
+            
+            var scale = projectile[i].scale;
+            if (projectile[i].position[0] > (CWIDE+scale) ) projectile[i].position[0] = (0-scale);
+            if (projectile[i].position[0] < (0-scale)) projectile[i].position[0] = (CWIDE+scale);
+            if (projectile[i].position[1] > (CHIGH+scale)) projectile[i].position[1] = (0-scale);
+            if (projectile[i].position[1] < (0-scale)) projectile[i].position[1] = (CHIGH+scale);
+
+            var aX = projectile[i].position[0];
+            var aY = projectile[i].position[1];
+            for(var j=0; j<bullets.length; ++j) {
+                projectile[i].actual[j][0] = aX + (bullets[j][0] * scale);
+                projectile[i].actual[j][1] = aY + (bullets[j][1] * scale);
+            }
+            if (projectile[i].stepCount > 45) { projectile[i].alive = false; --liveICBMs;  }
+
+            // ========== Ship+SaucerShot Collision Detect ==========
+            if (!dead) {
+                var shipLhs = ship.position[0] - ship.scale;
+                var shipRhs = ship.position[0] + ship.scale;
+                var shipTop = ship.position[1] - ship.scale;
+                var shipBut = ship.position[1] + ship.scale;
+                var shotLhs = projectile[i].position[0] - projectile[i].scale;
+                var shotRhs = projectile[i].position[0] + projectile[i].scale;
+                var shotTop = projectile[i].position[1] - projectile[i].scale;
+                var shotBut = projectile[i].position[1] + projectile[i].scale;
+
+                if (! (shipLhs > shotRhs || shipRhs < shotLhs || shipTop > shotBut || shipBut < shotTop)) {
+                    projectile[i].alive = false; --liveICBMs;
+                    dead = true; // YOU DIED
+                    KeyBits = 0; // STOP DIRECTION/FIRING/ETC
+                    ship.direction[0] = 0; // STOP SHIP
+                    ship.direction[1] = 0; // STOP SHIP
+                } 
+            }
+            // ========== Ship+SaucerShot Collision Detect ========== 
+            
+            
+        }
+    }
+    
+	function moveShip() {
+		var scale = ship.scale;
+        ship.position[0] += ship.direction[0];
+        ship.position[1] += ship.direction[1];
+        
+		if (ship.position[0] > CWIDE) ship.position[0] = 0;
+		if (ship.position[0] < 0) ship.position[0] = CWIDE;
+		if (ship.position[1] > CHIGH) ship.position[1] = 0;
+		if (ship.position[1] < 0) ship.position[1] = CHIGH;
+        
+		ship.direction[0] *= 0.993; // gradually slow ship down
+		ship.direction[1] *= 0.993; // gradually slow ship down
+
+		for(var i=0; i<ship.master.length; ++i) {
+			var x = ship.master[i][0];
+			var y = ship.master[i][1];
+			ship.actual[i][0] = ship.position[0] + ((x * dirArr[shipDirection].cos - y * dirArr[shipDirection].sin) * scale);
+			ship.actual[i][1] = ship.position[1] + ((x * dirArr[shipDirection].sin + y * dirArr[shipDirection].cos) * scale);
+		}
+		for(var i=0; i<ship.thrustMaster.length; ++i) {
+			var x = ship.thrustMaster[i][0];
+			var y = ship.thrustMaster[i][1];
+			ship.thrustActual[i][0] = ship.position[0] + ((x * dirArr[shipDirection].cos - y * dirArr[shipDirection].sin) * scale);
+			ship.thrustActual[i][1] = ship.position[1] + ((x * dirArr[shipDirection].sin + y * dirArr[shipDirection].cos) * scale);
+		}
+		
+	}
+	
+    function moveMissile() {
+		for(var i=0; i<missiles.length; ++i) {
+            if (!missiles[i].alive) continue;
+            ++missiles[i].stepCount;
+            missiles[i].position[0] += (missiles[i].direction[0] * missiles[i].moveSpeed);
+            missiles[i].position[1] += (missiles[i].direction[1] * missiles[i].moveSpeed);
+            
+            var scale = missiles[i].scale;
+            if (missiles[i].position[0] > (CWIDE+scale) ) missiles[i].position[0] = (0-scale);
+            if (missiles[i].position[0] < (0-scale)) missiles[i].position[0] = (CWIDE+scale);
+            if (missiles[i].position[1] > (CHIGH+scale)) missiles[i].position[1] = (0-scale);
+            if (missiles[i].position[1] < (0-scale)) missiles[i].position[1] = (CHIGH+scale);
+
+            var aX = missiles[i].position[0];
+            var aY = missiles[i].position[1];
+            for(var j=0; j<bullets.length; ++j) {
+                missiles[i].actual[j][0] = aX + (bullets[j][0] * scale);
+                missiles[i].actual[j][1] = aY + (bullets[j][1] * scale);
+            }
+            if (missiles[i].stepCount > 45) { missiles[i].alive = false; --liveRounds; }
+            
+            // ========== Missile+SaucerShot Collision Detect ==========
+            if (enemy.alive) {
+                var shipLhs = enemy.position[0] - enemy.scale;
+                var shipRhs = enemy.position[0] + enemy.scale;
+                var shipTop = enemy.position[1] - enemy.scale;
+                var shipBut = enemy.position[1] + enemy.scale;
+                var shotLhs = missiles[i].position[0] - missiles[i].scale;
+                var shotRhs = missiles[i].position[0] + missiles[i].scale;
+                var shotTop = missiles[i].position[1] - missiles[i].scale;
+                var shotBut = missiles[i].position[1] + missiles[i].scale;
+
+                if (! (shipLhs > shotRhs || shipRhs < shotLhs || shipTop > shotBut || shipBut < shotTop)) {
+                    missiles[i].alive = false; --liveRounds;
+                    enemy.alive = false;
+                    bigBang(enemy.position[0],enemy.position[1]);
+                    adjustScore(ALIEN_SCORE,1);
+                } 
+            }
+            // ========== Missile+SaucerShot Collision Detect ========== 
+            
+            
+        }
+    }
+
+    function hitAsteroid(i,addScore) {
+        
+        if (addScore) {
+            if (asteroids[i].scale == BIG) adjustScore(BIG_SCORE,1);
+            if (asteroids[i].scale == MED) adjustScore(MED_SCORE,1);
+            if (asteroids[i].scale == SML) adjustScore(SML_SCORE,1);
+        }
+            
+        if (asteroids[i].scale == BIG) {
+            var num1 = rand(0,3);
+            var num2 = rand(0,3);
+            var siz = MED;
+            var atX = asteroids[i].position[0];
+            var atY = asteroids[i].position[1];
+            var dr1 = (asteroids[i].degrees + (DIRSTEPS - 30)) % DIRSTEPS; 
+            var dr2 = (asteroids[i].degrees + (DIRSTEPS + 30)) % DIRSTEPS; 
+            var mph1 = difficulty[hard].RMEDSPD;
+            var mph2 = difficulty[hard].RMEDSPD;
+            makeAsteroid(num1, siz, atX, atY, dr1, mph1);
+            makeAsteroid(num2, siz, atX, atY, dr2, mph2);
+        }
+        
+        if (asteroids[i].scale == MED) {
+            var num1 = rand(0,3);
+            var num2 = rand(0,3);
+            var siz = SML;
+            var atX = asteroids[i].position[0];
+            var atY = asteroids[i].position[1];
+            var dr1 = (asteroids[i].degrees + (DIRSTEPS - 30)) % DIRSTEPS; 
+            var dr2 = (asteroids[i].degrees + (DIRSTEPS + 30)) % DIRSTEPS; 
+            var mph1 = difficulty[hard].RSMLSPD;
+            var mph2 = difficulty[hard].RSMLSPD;
+            makeAsteroid(num1, siz, atX, atY, dr1, mph1);
+            makeAsteroid(num2, siz, atX, atY, dr2, mph2);
+        }
+        
+    
+    }
+    
+    
+	function moveAsteroid() {
+        spawn = true;
+		for(var i=0; i<asteroids.length; ++i) {
+            if (!asteroids[i].alive) continue;
+            asteroids[i].position[0] += (asteroids[i].direction[0] * asteroids[i].moveSpeed);
+            asteroids[i].position[1] += (asteroids[i].direction[1] * asteroids[i].moveSpeed);
+            
+            var scale = asteroids[i].scale;
+            if (asteroids[i].position[0] > (CWIDE+scale) ) asteroids[i].position[0] = (0-scale);
+            if (asteroids[i].position[0] < (0-scale)) asteroids[i].position[0] = (CWIDE+scale);
+            if (asteroids[i].position[1] > (CHIGH+scale)) asteroids[i].position[1] = (0-scale);
+            if (asteroids[i].position[1] < (0-scale)) asteroids[i].position[1] = (CHIGH+scale);
+
+            var aX = asteroids[i].position[0];
+            var aY = asteroids[i].position[1];
+            var points = rocks[asteroids[i].rockNo].concave;
+            for(var j=0; j<points.length; ++j) {
+                asteroids[i].actual[j][0] = aX + (points[j][0] * scale);
+                asteroids[i].actual[j][1] = aY + (points[j][1] * scale);
+            }
+
+            // ================ ASTEROID BOUNDING BOX ================
+            var rockLht = asteroids[i].position[0] - asteroids[i].scale;
+            var rockRhs = asteroids[i].position[0] + asteroids[i].scale;
+            var rockTop = asteroids[i].position[1] - asteroids[i].scale;
+            var rockBut = asteroids[i].position[1] + asteroids[i].scale;   
+            
+            // =================== Spawn Zone Detect ===================
+            var spwnLhs = (CWIDE/2) - (ship.scale*3);
+            var spwnRhs = (CWIDE/2) + (ship.scale*3);
+            var spwnTop = (CHIGH/2) - (ship.scale*3);
+            var spwnBut = (CHIGH/2) + (ship.scale*3);
+            if (!(rockLht > spwnRhs || rockRhs < spwnLhs || rockTop > spwnBut || rockBut < spwnTop)) {
+                spawn = false;
+            }
+            // =================== Spawn Zone Detect ===================
+            
+            // ========== Rock+Ship Collision Detect ==========
+            var shipLhs = ship.position[0] - ship.scale;
+            var shipRhs = ship.position[0] + ship.scale;
+            var shipTop = ship.position[1] - ship.scale;
+            var shipBut = ship.position[1] + ship.scale;
+            
+            if (!dead) {
+                if (! (rockLht > shipRhs || rockRhs < shipLhs || rockTop > shipBut || rockBut < shipTop)) {
+                    
+                    var hit = rockShipCollision(i);
+                    if (hit) { 
+                        dead = true; // YOU DIED
+                        KeyBits = 0; // STOP DIRECTION/FIRING/ETC
+                        ship.direction[0] = 0; // STOP SHIP
+                        ship.direction[1] = 0; // STOP SHIP
+                        asteroids[i].alive = false;
+                        bigBang(asteroids[i].position[0],asteroids[i].position[1]);
+                        hitAsteroid(i,true);
+                    }
+                }
+            }
+            // ========== Rock+Ship Collision Detect ========== 
+            
+            // ========== Rock+Shot Collision Detect (USE BOUNDING BOX) ==========
+            for(s=0; s<missiles.length; ++s) {
+                if (!missiles[s].alive) continue;
+                var shotLhs = missiles[s].position[0] - missiles[s].scale;
+                var shotRhs = missiles[s].position[0] + missiles[s].scale;
+                var shotTop = missiles[s].position[1] - missiles[s].scale;
+                var shotBut = missiles[s].position[1] + missiles[s].scale;
+                
+                if (! (rockLht > shotRhs || rockRhs < shotLhs || rockTop > shotBut || rockBut < shotTop)) {
+                    asteroids[i].alive = false;
+                    missiles[s].alive = false; --liveRounds;
+                    bigBang(asteroids[i].position[0],asteroids[i].position[1]);
+                    hitAsteroid(i,true);
+                } 
+            }
+            // ========== Rock+Shot Collision Detect (USE BOUNDING BOX) ========== 
+            
+            // ========== Rock+SaucerShot Collision Detect (USE BOUNDING BOX) ==========
+            for(s=0; s<projectile.length; ++s) {
+                if (!projectile[s].alive) continue;
+                var shotLhs = projectile[s].position[0] - projectile[s].scale;
+                var shotRhs = projectile[s].position[0] + projectile[s].scale;
+                var shotTop = projectile[s].position[1] - projectile[s].scale;
+                var shotBut = projectile[s].position[1] + projectile[s].scale;
+                
+                if (! (rockLht > shotRhs || rockRhs < shotLhs || rockTop > shotBut || rockBut < shotTop)) {
+                    asteroids[i].alive = false;
+                    projectile[s].alive = false; --liveICBMs;
+                    bigBang(asteroids[i].position[0],asteroids[i].position[1]);
+                    hitAsteroid(i,false);
+                } 
+            }
+            // ========== Rock+SaucerShot Collision Detect (USE BOUNDING BOX) ========== 
+            
+            // ========== Rock+Saucer Collision Detect ==========
+            if (enemy.alive) {
+                var shipLhs = enemy.position[0] - enemy.scale;
+                var shipRhs = enemy.position[0] + enemy.scale;
+                var shipTop = enemy.position[1] - enemy.scale;
+                var shipBut = enemy.position[1] + enemy.scale;
+                
+                if (! (rockLht > shipRhs || rockRhs < shipLhs || rockTop > shipBut || rockBut < shipTop)) {
+                    var hit = rockEnemyCollision(i);
+                    if (hit) {
+                        asteroids[i].alive = false;
+                        enemy.alive = false;
+                        bigBang(enemy.position[0],enemy.position[1]);
+                        bigBang(asteroids[i].position[0],asteroids[i].position[1]);
+                        hitAsteroid(i,false);
+                    }    
+                }
+            }
+            // ========== Rock+Saucer Collision Detect ========== 
+            
+            
+ 		}
+	
+	}
+
+    function shipEnemyCollision() {
+        var vexShip = fighterConvex;
+        var vexEnemy = ufoConvex;
+        
+        var sMin, sMax, eMin, eMax, proj;
+        var hit = true;
+        for(var n=0;n<vexShip.length-1; ++n) {
+            hit = true;
+            // find Normal to SHIP Side
+            ux = ship.actual[vexShip[n]][0];
+            uy = ship.actual[vexShip[n]][1];
+            vx = ship.actual[vexShip[n+1]][0];
+            vy = ship.actual[vexShip[n+1]][1];
+            nx = -1 * (vy-uy); // NORMAL CALC
+            ny = (vx - ux);    // NORMAL CALC
+            // project SHIP points onto Normal - get Min/Max
+            for(var s=0; s<vexShip.length; ++s) {
+                sx = ship.actual[vexShip[s]][0];
+                sy = ship.actual[vexShip[s]][1];
+                proj = ( (nx * sx) + (ny * sy) ); // DOT PRODUCT CALC
+                if (s == 0) { sMin = proj; sMax = proj; }
+                sMax = (proj > sMax) ? proj : sMax;
+                sMin = (proj < sMin) ? proj : sMin;
+            }
+            // project ENEMY points onto Normal - get Min/Max
+            for(var e=0; e<vexEnemy.length; ++e) {
+                ex = enemy.actual[vexEnemy[e]][0];
+                ey = enemy.actual[vexEnemy[e]][1];
+                proj = ( (nx * ex) + (ny * ey) ); // DOT PRODUCT CALC
+                if (e == 0) { eMin = proj; eMax = proj; }
+                eMax = (proj > eMax) ? proj : eMax;
+                eMin = (proj < eMin) ? proj : eMin;
+            }
+            if ((sMin > eMax) || (sMax < eMin)) {
+                hit = false;
+                break;
+            }
+        }
+        if (hit) { return true; }
+        return false;
+    }
+    
+    function rockEnemyCollision(a) {
+        var aRock = asteroids[a].rockNo;
+        var aScale = asteroids[a].scale;
+        var aX = asteroids[a].position[0];
+        var aY = asteroids[a].position[1];
+        
+        var vexRok1 = rocks[aRock].convex[0];
+        var vexRok2 = rocks[aRock].convex[1];
+        var vexRok3 = rocks[aRock].convex[2];
+        var vexShip = ufoConvex;
+
+        var rMin, rMax, sMin, sMax, proj;
+        var hit = true;
+        for(var n=0;n<vexRok1.length-1; ++n) {
+            hit = true;
+            // find Normal to Rock Side
+            ux = asteroids[a].actual[vexRok1[n]][0];
+            uy = asteroids[a].actual[vexRok1[n]][1];
+            vx = asteroids[a].actual[vexRok1[n+1]][0];
+            vy = asteroids[a].actual[vexRok1[n+1]][1];
+            nx = -1 * (vy-uy); // NORMAL CALC
+            ny = (vx - ux);    // NORMAL CALC
+            // project ROCK points onto Normal - get Min/Max
+            for(var r=0; r<vexRok1.length; ++r) {
+                rx = asteroids[a].actual[vexRok1[r]][0];
+                ry = asteroids[a].actual[vexRok1[r]][1];
+                proj = ( (nx * rx) + (ny * ry) ); // DOT PRODUCT CALC
+                if (r == 0) { rMin = proj; rMax = proj; }
+                rMax = (proj > rMax) ? proj : rMax;
+                rMin = (proj < rMin) ? proj : rMin;
+            }
+            // project SHIP points onto Normal - get Min/Max
+            for(var s=0; s<vexShip.length; ++s) {
+                sx = enemy.actual[vexShip[s]][0];
+                sy = enemy.actual[vexShip[s]][1];
+                proj = ( (nx * sx) + (ny * sy) ); // DOT PRODUCT CALC
+                if (s == 0) { sMin = proj; sMax = proj; }
+                sMax = (proj > sMax) ? proj : sMax;
+                sMin = (proj < sMin) ? proj : sMin;
+            }
+            if ((sMin > rMax) || (sMax < rMin)) {
+                hit = false;
+                break;
+            }
+        }
+        if (hit) { return true; }
+        
+        for(var n=0;n<vexRok2.length-1; ++n) {
+            hit = true;
+            // find Normal to Rock Side
+            ux = asteroids[a].actual[vexRok2[n]][0];
+            uy = asteroids[a].actual[vexRok2[n]][1];
+            vx = asteroids[a].actual[vexRok2[n+1]][0];
+            vy = asteroids[a].actual[vexRok2[n+1]][1];
+            nx = -1 * (vy-uy); // NORMAL CALC
+            ny = (vx - ux);    // NORMAL CALC
+            // project ROCK points onto Normal - get Min/Max
+            for(var r=0; r<vexRok2.length; ++r) {
+                rx = asteroids[a].actual[vexRok2[r]][0];
+                ry = asteroids[a].actual[vexRok2[r]][1];
+                proj = ( (nx * rx) + (ny * ry) ); // DOT PRODUCT CALC
+                if (r == 0) { rMin = proj; rMax = proj; }
+                rMax = (proj > rMax) ? proj : rMax;
+                rMin = (proj < rMin) ? proj : rMin;
+            }
+            // project SHIP points onto Normal - get Min/Max
+            for(var s=0; s<vexShip.length; ++s) {
+                sx = enemy.actual[vexShip[s]][0];
+                sy = enemy.actual[vexShip[s]][1];
+                proj = ( (nx * sx) + (ny * sy) ); // DOT PRODUCT CALC
+                if (s == 0) { sMin = proj; sMax = proj; }
+                sMax = (proj > sMax) ? proj : sMax;
+                sMin = (proj < sMin) ? proj : sMin;
+            }
+            if ((sMin > rMax) || (sMax < rMin)) {
+                hit = false;
+                break;
+            }
+        }
+        if (hit) { return true; }
+        
+        for(var n=0;n<vexRok3.length-1; ++n) {
+            hit = true;
+            // find Normal to Rock Side
+            ux = asteroids[a].actual[vexRok3[n]][0];
+            uy = asteroids[a].actual[vexRok3[n]][1];
+            vx = asteroids[a].actual[vexRok3[n+1]][0];
+            vy = asteroids[a].actual[vexRok3[n+1]][1];
+            nx = -1 * (vy-uy); // NORMAL CALC
+            ny = (vx - ux);    // NORMAL CALC
+            // project ROCK points onto Normal - get Min/Max
+            for(var r=0; r<vexRok3.length; ++r) {
+                rx = asteroids[a].actual[vexRok3[r]][0];
+                ry = asteroids[a].actual[vexRok3[r]][1];
+                proj = ( (nx * rx) + (ny * ry) ); // DOT PRODUCT CALC
+                if (r == 0) { rMin = proj; rMax = proj; }
+                rMax = (proj > rMax) ? proj : rMax;
+                rMin = (proj < rMin) ? proj : rMin;
+            }
+            // project SHIP points onto Normal - get Min/Max
+            for(var s=0; s<vexShip.length; ++s) {
+                sx = enemy.actual[vexShip[s]][0];
+                sy = enemy.actual[vexShip[s]][1];
+                proj = ( (nx * sx) + (ny * sy) ); // DOT PRODUCT CALC
+                if (s == 0) { sMin = proj; sMax = proj; }
+                sMax = (proj > sMax) ? proj : sMax;
+                sMin = (proj < sMin) ? proj : sMin;
+            }
+            if ((sMin > rMax) || (sMax < rMin)) {
+                hit = false;
+                break;
+            }
+        }
+        if (hit) { return true; }
+        
+        return false;
+        
+    }
+    
+    function rockShipCollision(a) {
+        var aRock = asteroids[a].rockNo;
+        var aScale = asteroids[a].scale;
+        var aX = asteroids[a].position[0];
+        var aY = asteroids[a].position[1];
+        
+        var vexRok1 = rocks[aRock].convex[0];
+        var vexRok2 = rocks[aRock].convex[1];
+        var vexRok3 = rocks[aRock].convex[2];
+        var vexShip = fighterConvex;
+
+        var rMin, rMax, sMin, sMax, proj;
+        var hit = true;
+        for(var n=0;n<vexRok1.length-1; ++n) {
+            hit = true;
+            // find Normal to Rock Side
+            ux = asteroids[a].actual[vexRok1[n]][0];
+            uy = asteroids[a].actual[vexRok1[n]][1];
+            vx = asteroids[a].actual[vexRok1[n+1]][0];
+            vy = asteroids[a].actual[vexRok1[n+1]][1];
+            nx = -1 * (vy-uy); // NORMAL CALC
+            ny = (vx - ux);    // NORMAL CALC
+            // project ROCK points onto Normal - get Min/Max
+            for(var r=0; r<vexRok1.length; ++r) {
+                rx = asteroids[a].actual[vexRok1[r]][0];
+                ry = asteroids[a].actual[vexRok1[r]][1];
+                proj = ( (nx * rx) + (ny * ry) ); // DOT PRODUCT CALC
+                if (r == 0) { rMin = proj; rMax = proj; }
+                rMax = (proj > rMax) ? proj : rMax;
+                rMin = (proj < rMin) ? proj : rMin;
+            }
+            // project SHIP points onto Normal - get Min/Max
+            for(var s=0; s<vexShip.length; ++s) {
+                sx = ship.actual[vexShip[s]][0];
+                sy = ship.actual[vexShip[s]][1];
+                proj = ( (nx * sx) + (ny * sy) ); // DOT PRODUCT CALC
+                if (s == 0) { sMin = proj; sMax = proj; }
+                sMax = (proj > sMax) ? proj : sMax;
+                sMin = (proj < sMin) ? proj : sMin;
+            }
+            if ((sMin > rMax) || (sMax < rMin)) {
+                hit = false;
+                break;
+            }
+        }
+        if (hit) { return true; }
+        
+        for(var n=0;n<vexRok2.length-1; ++n) {
+            hit = true;
+            // find Normal to Rock Side
+            ux = asteroids[a].actual[vexRok2[n]][0];
+            uy = asteroids[a].actual[vexRok2[n]][1];
+            vx = asteroids[a].actual[vexRok2[n+1]][0];
+            vy = asteroids[a].actual[vexRok2[n+1]][1];
+            nx = -1 * (vy-uy); // NORMAL CALC
+            ny = (vx - ux);    // NORMAL CALC
+            // project ROCK points onto Normal - get Min/Max
+            for(var r=0; r<vexRok2.length; ++r) {
+                rx = asteroids[a].actual[vexRok2[r]][0];
+                ry = asteroids[a].actual[vexRok2[r]][1];
+                proj = ( (nx * rx) + (ny * ry) ); // DOT PRODUCT CALC
+                if (r == 0) { rMin = proj; rMax = proj; }
+                rMax = (proj > rMax) ? proj : rMax;
+                rMin = (proj < rMin) ? proj : rMin;
+            }
+            // project SHIP points onto Normal - get Min/Max
+            for(var s=0; s<vexShip.length; ++s) {
+                sx = ship.actual[vexShip[s]][0];
+                sy = ship.actual[vexShip[s]][1];
+                proj = ( (nx * sx) + (ny * sy) ); // DOT PRODUCT CALC
+                if (s == 0) { sMin = proj; sMax = proj; }
+                sMax = (proj > sMax) ? proj : sMax;
+                sMin = (proj < sMin) ? proj : sMin;
+            }
+            if ((sMin > rMax) || (sMax < rMin)) {
+                hit = false;
+                break;
+            }
+        }
+        if (hit) { return true; }
+        
+        for(var n=0;n<vexRok3.length-1; ++n) {
+            hit = true;
+            // find Normal to Rock Side
+            ux = asteroids[a].actual[vexRok3[n]][0];
+            uy = asteroids[a].actual[vexRok3[n]][1];
+            vx = asteroids[a].actual[vexRok3[n+1]][0];
+            vy = asteroids[a].actual[vexRok3[n+1]][1];
+            nx = -1 * (vy-uy); // NORMAL CALC
+            ny = (vx - ux);    // NORMAL CALC
+            // project ROCK points onto Normal - get Min/Max
+            for(var r=0; r<vexRok3.length; ++r) {
+                rx = asteroids[a].actual[vexRok3[r]][0];
+                ry = asteroids[a].actual[vexRok3[r]][1];
+                proj = ( (nx * rx) + (ny * ry) ); // DOT PRODUCT CALC
+                if (r == 0) { rMin = proj; rMax = proj; }
+                rMax = (proj > rMax) ? proj : rMax;
+                rMin = (proj < rMin) ? proj : rMin;
+            }
+            // project SHIP points onto Normal - get Min/Max
+            for(var s=0; s<vexShip.length; ++s) {
+                sx = ship.actual[vexShip[s]][0];
+                sy = ship.actual[vexShip[s]][1];
+                proj = ( (nx * sx) + (ny * sy) ); // DOT PRODUCT CALC
+                if (s == 0) { sMin = proj; sMax = proj; }
+                sMax = (proj > sMax) ? proj : sMax;
+                sMin = (proj < sMin) ? proj : sMin;
+            }
+            if ((sMin > rMax) || (sMax < rMin)) {
+                hit = false;
+                break;
+            }
+        }
+        if (hit) { return true; }
+        
+        return false;
+        
+    }
+
+    function hyperSpace() {
+        var reappear = false;
+        var sX = rand(0,CWIDE);
+        var sY = rand(0,CHIGH);
+        var sS = ship.scale;
+        if ((shipDirection%2) == 0) { // only safe hyperjump if direction is even number
+            while (!reappear) {
+                reappear = true;
+                sX = rand(0,CWIDE);
+                sY = rand(0,CHIGH);
+                for(var i=0; i<asteroids.length; ++i) {
+                    if (!asteroids[i].alive) continue;
+                    aX = asteroids[i].position[0];
+                    aY = asteroids[i].position[1];
+                    aS = asteroids[i].scale;
+
+                    var spwnLhs = sX - sS;
+                    var spwnRhs = sX + sS;
+                    var spwnTop = sY - sS;
+                    var spwnBut = sY + sS;
+                    var rockLht = aX - aS;
+                    var rockRhs = aX + aS;
+                    var rockTop = aY - aS;
+                    var rockBut = aY + aS;   
+                    if (!(rockLht > spwnRhs || rockRhs < spwnLhs || rockTop > spwnBut || rockBut < spwnTop)) {
+                        reappear = false;
+                    }    
+                    
+                }
+            }
+        }
+        ship.position[0] = sX;
+        ship.position[1] = sY;
+    }
+    
+    /// ================================= DRAW GAMEBOARD =================================
+    function drawGameboard() {
+		// CLEAR THE CANVAS
+        ctx.clearRect(0,0, CWIDE,CHIGH);
+        
+        if (fireWorks > 0) {
+            for(var i=0; i<explode.length; ++i) {
+                for(j=0; j<explosions.length; ++j) {
+                    if (!explosions[j].alive) continue;
+                    var pX = (explode[i][0] * explosions[j].scale) + explosions[j].position[0]; 
+                    var pY = (explode[i][1] * explosions[j].scale) + explosions[j].position[1]; 
+                    ctx.putImageData(pixel, pX, pY);
+                }
+            }
+        }
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineCap = 'square';
+		ctx.beginPath();
+
+        var spareLives = lives - 1;
+		var scale = 10;
+        var posX = CWIDE / 4;
+        var posY = CHIGH * 0.1;
+        var startX = posX - (spareLives * scale);
+        for(var l=0; l<spareLives; ++l) {
+            for(var i=0; i<ship.master.length; ++i) {
+                var x = ship.master[i][0];// * scale) + startX + (scale * 2 * l);
+                var y = ship.master[i][1];// * scale) + posY;
+                var aX = ((x * dirArr[270].cos - y * dirArr[270].sin) * scale) + startX + (scale * 2 * l);
+                var aY = ((x * dirArr[270].sin + y * dirArr[270].cos) * scale) + posY;
+                if (i == 0) {
+                    ctx.moveTo(aX,aY);
+                } else {
+                    ctx.lineTo(aX,aY);
+                }
+            }
+        
+        }
+        
+        var string = "@ 1979 ATARI INC";
+		var scale = 3.5;
+        var posX = CWIDE / 2;
+        var posY = CHIGH * 0.95;
+        var startX = posX - (string.length * scale);
+		for(var i=0; i<string.length; ++i) {
+            var c = string.charCodeAt(i);
+            if ((c>=64) && (c<=90)) { // LETTERS
+                c-=54;
+            } else if ((c>=48) && (c<=57)) { // NUMBERS
+                c-=48;
+            } else {
+                continue;
+            }
+			for(var j=0; j<figures[c].length; ++j) {
+				var tmp = figures[c][j];
+				var ux = (font[tmp][0][0] * scale) + startX + (scale * 2 * i);
+				var uy = (font[tmp][0][1] * scale) + posY;
+				var vx = (font[tmp][1][0] * scale) + startX + (scale * 2 * i);
+				var vy = (font[tmp][1][1] * scale) + posY;
+				ctx.moveTo(ux, uy);
+				ctx.lineTo(vx, vy);				
+			}
+ 		}
+
+        var string = p1Score.toString();
+		var scale = 8;
+        var posX = CWIDE / 4;
+        var posY = CHIGH * 0.05;
+        var startX = posX - (string.length * scale);
+		for(var i=0; i<string.length; ++i) {
+            var c = string.charCodeAt(i) - 48;
+			for(var j=0; j<figures[c].length; ++j) {
+				var tmp = figures[c][j];
+				var ux = (font[tmp][0][0] * scale) + startX + (scale * 2 * i);
+				var uy = (font[tmp][0][1] * scale) + posY;
+				var vx = (font[tmp][1][0] * scale) + startX + (scale * 2 * i);
+				var vy = (font[tmp][1][1] * scale) + posY;
+				ctx.moveTo(Math.round(ux), Math.round(uy));
+				ctx.lineTo(Math.round(vx), Math.round(vy));				
+			}
+ 		}
+
+        var string = hiScore.toString();
+		var scale = 4;
+        var posX = CWIDE / 2;
+        var posY = CHIGH * 0.05;
+        var startX = posX - (string.length * scale);
+		for(var i=0; i<string.length; ++i) {
+            var c = string.charCodeAt(i) - 48;
+			for(var j=0; j<figures[c].length; ++j) {
+				var tmp = figures[c][j];
+				var ux = (font[tmp][0][0] * scale) + startX + (scale * 2 * i);
+				var uy = (font[tmp][0][1] * scale) + posY;
+				var vx = (font[tmp][1][0] * scale) + startX + (scale * 2 * i);
+				var vy = (font[tmp][1][1] * scale) + posY;
+				ctx.moveTo(Math.round(ux), Math.round(uy));
+				ctx.lineTo(Math.round(vx), Math.round(vy));				
+			}
+ 		}
+        
+        var string = p2Score.toString();
+		var scale = 8;
+        var posX = 3 * CWIDE / 4;
+        var posY = CHIGH * 0.05;
+        var startX = posX - (string.length * scale);
+		for(var i=0; i<string.length; ++i) {
+            var c = string.charCodeAt(i) - 48;
+			for(var j=0; j<figures[c].length; ++j) {
+				var tmp = figures[c][j];
+				var ux = (font[tmp][0][0] * scale) + startX + (scale * 2 * i);
+				var uy = (font[tmp][0][1] * scale) + posY;
+				var vx = (font[tmp][1][0] * scale) + startX + (scale * 2 * i);
+				var vy = (font[tmp][1][1] * scale) + posY;
+				ctx.moveTo(Math.round(ux), Math.round(uy));
+				ctx.lineTo(Math.round(vx), Math.round(vy));				
+			}
+ 		}
+
+        for(var i=0; i<enemy.actual.length; ++i) {
+            if (enemy.alive) {
+                if (i == 0) {
+                    ctx.moveTo(enemy.actual[i][0], enemy.actual[i][1]);
+                } else {
+                    ctx.lineTo(enemy.actual[i][0], enemy.actual[i][1]);
+                }
+            }
+        }
+
+        
+        if (!dead) {
+            for(var i=0; i<ship.actual.length; ++i) {
+                if (i == 0) {
+                    ctx.moveTo(ship.actual[i][0], ship.actual[i][1]);
+                } else {
+                    ctx.lineTo(ship.actual[i][0], ship.actual[i][1]);
+                }
+            }
+            if ((KeyBits&2) == 2) {
+                for(var i=0; i<ship.thrustActual.length; ++i) {
+                    if (i == 0) {
+                        ctx.moveTo(ship.thrustActual[i][0], ship.thrustActual[i][1]);
+                    } else {
+                        ctx.lineTo(ship.thrustActual[i][0], ship.thrustActual[i][1]);
+                    }
+                }
+            }
+        } else {
+            var dScale = ship.scale;
+            var dX = ship.position[0];
+            var dY = ship.position[1];
+            for(var i=0; i<death.length; ++i) {
+                if (!death[i].alive) continue;
+                var ux = (death[i].line[0][0] * dScale) + dX + (dirArr[death[i].direction].cos*death[i].speed*death[i].distance);
+                var uy = (death[i].line[0][1] * dScale) + dY + (dirArr[death[i].direction].sin*death[i].speed*death[i].distance);
+                var vx = (death[i].line[1][0] * dScale) + dX + (dirArr[death[i].direction].cos*death[i].speed*death[i].distance);
+                var vy = (death[i].line[1][1] * dScale) + dY + (dirArr[death[i].direction].sin*death[i].speed*death[i].distance);
+                ctx.moveTo(ux, uy);
+                ctx.lineTo(vx, vy);
+                ++death[i].distance;
+                if (death[i].distance > death[i].far) death[i].alive = false;
+            }
+            
+            if (lives == 0) {
+                var string = "GAME OVER";
+                var scale = 10;
+                var posX = CWIDE / 2;
+                var posY = CHIGH * 0.4;
+                var startX = posX - (string.length * scale);
+                for(var i=0; i<string.length; ++i) {
+                    var c = string.toUpperCase().charCodeAt(i);
+                    if ((c>=64) && (c<=90)) { // LETTERS
+                        c-=54;
+                    } else if ((c>=48) && (c<=57)) { // NUMBERS
+                        c-=48;
+                    } else {
+                        continue;
+                    }
+                    for(var j=0; j<figures[c].length; ++j) {
+                        var tmp = figures[c][j];
+                        var ux = (font[tmp][0][0] * scale) + startX + (scale * 2 * i);
+                        var uy = (font[tmp][0][1] * scale) + posY;
+                        var vx = (font[tmp][1][0] * scale) + startX + (scale * 2 * i);
+                        var vy = (font[tmp][1][1] * scale) + posY;
+                        ctx.moveTo(ux, uy);
+                        ctx.lineTo(vx, vy);				
+                    }
+                }
+                
+                var string = "HIT SPACEBAR TO BEGIN";
+                var scale = 10;
+                var posX = CWIDE / 2;
+                var posY = CHIGH * 0.5;
+                var startX = posX - (string.length * scale);
+                for(var i=0; i<string.length; ++i) {
+                    var c = string.toUpperCase().charCodeAt(i);
+                    if ((c>=64) && (c<=90)) { // LETTERS
+                        c-=54;
+                    } else if ((c>=48) && (c<=57)) { // NUMBERS
+                        c-=48;
+                    } else {
+                        continue;
+                    }
+                    for(var j=0; j<figures[c].length; ++j) {
+                        var tmp = figures[c][j];
+                        var ux = (font[tmp][0][0] * scale) + startX + (scale * 2 * i);
+                        var uy = (font[tmp][0][1] * scale) + posY;
+                        var vx = (font[tmp][1][0] * scale) + startX + (scale * 2 * i);
+                        var vy = (font[tmp][1][1] * scale) + posY;
+                        ctx.moveTo(ux, uy);
+                        ctx.lineTo(vx, vy);				
+                    }
+                }
+                
+            }
+        }
+	
+        var cnt = 0;
+		for(var a=0; a<asteroids.length; ++a) {
+            if (!asteroids[a].alive) continue;
+            ++cnt;
+            for(var i=0; i<asteroids[a].actual.length; ++i) {
+				if (i == 0) {
+					ctx.moveTo(asteroids[a].actual[i][0], asteroids[a].actual[i][1]);
+				} else {
+					ctx.lineTo(asteroids[a].actual[i][0], asteroids[a].actual[i][1]);
+				}
+            }
+
+		}
+        liveRoids = cnt; 
+        
+		for(var a=0; a<missiles.length; ++a) {
+            if (!missiles[a].alive) continue;
+            for(var i=0; i<missiles[a].actual.length; ++i) {
+				if (i == 0) {
+					ctx.moveTo(missiles[a].actual[i][0], missiles[a].actual[i][1]);
+				} else {
+					ctx.lineTo(missiles[a].actual[i][0], missiles[a].actual[i][1]);
+				}
+            }
+		}
+        
+		for(var a=0; a<projectile.length; ++a) {
+            if (!projectile[a].alive) continue;
+            for(var i=0; i<projectile[a].actual.length; ++i) {
+				if (i == 0) {
+					ctx.moveTo(projectile[a].actual[i][0], projectile[a].actual[i][1]);
+				} else {
+					ctx.lineTo(projectile[a].actual[i][0], projectile[a].actual[i][1]);
+				}
+            }
+		}
+        
+		ctx.stroke();
+        
+	}
+    /// ================================= DRAW GAMEBOARD =================================
+
+
+    /// ================================= MAIN GAME LOOP =================================
+    function main() {
+        if (RUN) requestAnimationFrame(main);
+        
+       
+        var now = Date.now();
+        var delta = now-before;
+        if (delta > fpsInt) { // ENSURE FPS MAXIMUM
+            animationCounter = (animationCounter+1)%1000;
+            before = now - (delta % fpsInt);
+			
+			if ((KeyBits&1) == 1) { //LEFT
+				shipDirection = (shipDirection + (DIRSTEPS - 3)) % DIRSTEPS; 
+			}
+			
+			if ((KeyBits&2) == 2) { //UP
+				if ((Math.abs(ship.direction[0]) < 5) && (Math.abs(ship.direction[1]) < 5)) {
+                    ship.direction[0] += (dirArr[shipDirection].cos/8);
+                    ship.direction[1] += (dirArr[shipDirection].sin/8);
+                }
+			}
+			
+			if ((KeyBits&4) == 4) { //RIGHT
+				shipDirection = (shipDirection + (DIRSTEPS + 3)) % DIRSTEPS; 
+			}
+
+			if ((KeyBits&8) == 8) { //DOWN
+				//console.log("down");
+			}
+			
+			if ((KeyBits&16) == 16) { //SPACE
+				//console.log("fire");
+			}
+
+			moveShip();
+            moveMissile();
+			moveAsteroid();
+            moveBang();
+            moveEnemy();
+            moveProjectile();
+            drawGameboard();
+            
+            if(++enemy.counter > difficulty[hard].AFREQ) { createEnemy(); }
+            
+            if (liveRoids == 0) { levelBegin(); }
+
+            if (dead) {
+                var deathBits = false;
+                for(var i=0; i<death.length; ++i) {
+                    if (death[i].alive) deathBits = true;
+                }
+                if ((!deathBits) && (spawn) && (lives > 0)) {
+                    --lives;
+                    if (lives > 0) { 
+                        dead = false; 
+                        for(var i=0; i<death.length; ++i) {
+                            death[i].distance = 0;
+                            death[i].alive = true;
+                        }
+                        ship.position[0] = CWIDE/2;
+                        ship.position[1] = CHIGH/2;
+                        ship.direction[0] = 0;
+                        ship.direction[1] = 0;
+                    }
+                }
+            }
+        }
+        
+    }
+    /// ================================= MAIN GAME LOOP =================================
+   
+	// KEYBOARD
+	$(document).keydown(function(e) {
+        if (dead) {
+            if ((lives == 0) && (e.which == 32)) {
+                startGame();
+            }
+            return;
+        } else {    
+            switch(e.which) {
+                case 37: KeyBits = (KeyBits|1); break; //LEFT
+                case 38: KeyBits = (KeyBits|2); break; //UP
+                case 39: KeyBits = (KeyBits|4); break; //RIGHT
+                case 40: if ((KeyBits&8) == 0) { hyperSpace(); } KeyBits = (KeyBits|8); break; //DOWN
+                case 32: if ((KeyBits&16) == 0) { shotFired(); } KeyBits = (KeyBits|16); break; //SPACE
+                default: return;
+            }
+            e.preventDefault(KeyBits);
+        }
+	});
+	$(document).keyup(function(e) {
+		switch(e.which) {
+			case 37: KeyBits = (KeyBits&(31-1)); break; //LEFT
+			case 38: KeyBits = (KeyBits&(31-2)); break; //UP
+			case 39: KeyBits = (KeyBits&(31-4)); break; //RIGHT
+			case 40: KeyBits = (KeyBits&(31-8)); break; //DOWN
+			case 32: KeyBits = (KeyBits&(31-16)); break; //SPACE
+			default: return;
+		}
+	});
+
+	function rand(min, max) {
+		return Math.floor(Math.random() * (max - min + 1)) + min;
+	}
+
+    levelBegin();
+    main();
+    
+});   
+</script>
+
+</head>
+<body>
+  <canvas id="asteroids" width=640 height=480></canvas>
+  <div id="crap"></div>
+</body>
+</html>
+
